@@ -169,9 +169,15 @@ class KallsymsFinder:
         We'll find kallsyms_token_table and infer the rest
     """
     
-    def __init__(self, kernel_img : bytes, bit_size : int = None, override_relative_base : bool = False):
-        
+    def __init__(
+        self,
+        kernel_img: bytes,
+        bit_size: int = None,
+        override_relative_base: bool = False,
+        override_base_address: int = None,
+    ):
         self.override_relative_base = override_relative_base
+        self.override_base_address = override_base_address
         self.kernel_img = kernel_img
         
         # -
@@ -317,10 +323,24 @@ class KallsymsFinder:
         if count < minimal_heuristic_count:
             return False
 
-        self.kernel_text_candidate = kernel_text_candidate
         self.elf64_rela = elf64_rela
-        logging.info('[+] Found relocations table at file offset 0x%04x (count=%d)' % (offset, count))
-        logging.info('[+] Found kernel text candidate: 0x%08x' % (kernel_text_candidate))
+        logging.info(
+            "[+] Found relocations table at file offset 0x%04x (count=%d)"
+            % (offset, count)
+        )
+        if self.override_base_address:
+            self.kernel_text_candidate = self.override_base_address
+            logging.info(
+                "[+] Found kernel text candidate: 0x%08x" % (kernel_text_candidate)
+            )
+            logging.info(
+                "[!] But user override it with: 0x%08x" % (self.override_base_address)
+            )
+        else:
+            self.kernel_text_candidate = kernel_text_candidate
+            logging.info(
+                "[+] Found kernel text candidate: 0x%08x" % (kernel_text_candidate)
+            )
         return True
 
     def apply_elf64_rela(self) -> bool:
@@ -1153,6 +1173,13 @@ if __name__ == '__main__':
     args.add_argument('--override-relative', help = 'Assume kallsyms offsets are absolute addresses' , action="store_true")
     args.add_argument('--bit-size', help = 'Force overriding the input kernel ' +
         'bit size, providing 32 or 64 bit (rather than auto-detect)', type = int)
+    args.add_argument(
+        "--base-address",
+        help="Force overriding the output ELF "
+        + "base address field with this integer value (rather than auto-detect)",
+        type=lambda string: int(string.replace("0x", ""), 16),
+        metavar="HEX_NUMBER",
+    )
     
     args = args.parse_args()
 
@@ -1160,7 +1187,12 @@ if __name__ == '__main__':
     with open(args.input_file, 'rb') as kernel_bin:
         
         try:
-            kallsyms = KallsymsFinder(obtain_raw_kernel_from_file(kernel_bin.read()), args.bit_size, args.override_relative)
+            kallsyms = KallsymsFinder(
+                obtain_raw_kernel_from_file(kernel_bin.read()),
+                args.bit_size,
+                args.override_relative,
+                args.base_address,
+            )
         
         except ArchitectureGuessError:
            exit('[!] The architecture of your kernel could not be guessed ' +

@@ -29,6 +29,8 @@ class ElfSymbolizer():
         elf_machine : int = None, bit_size : int = None,
         base_address : int = None, file_offset : int = None):
         
+        override_base_address = base_address
+        
         if file_contents.startswith(b'\x27\x05\x19\x56'): # uImage header magic (always big-endian)
             
             if file_offset is None:
@@ -41,7 +43,9 @@ class ElfSymbolizer():
         if file_offset:
             file_contents = file_contents[file_offset:]
         
-        kallsyms_finder = KallsymsFinder(file_contents, bit_size)
+        kallsyms_finder = KallsymsFinder(
+            file_contents, bit_size, override_base_address=override_base_address
+        )
         
         
         if file_contents.startswith(b'\x7fELF'):
